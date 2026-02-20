@@ -125,19 +125,13 @@ class TradingService:
                 logging.warning(f"Could not sell {coin_id}: Price missing")
 
     def check_sell_conditions(self, coin_id, current_price):
-        """Check if any sell conditions are met (5% Net Gain or TP/SL)."""
+        """Check if any sell conditions are met (TP/SL from settings)."""
         if coin_id in self.portfolio["holdings"]:
-            # 1. First, check the new 5% Net Gain After Fees (as requested)
-            gain_pct = self.get_coin_performance(coin_id, current_price)
-            if gain_pct >= 5.0:
-                return f"Profit Taking ({gain_pct:.2f}% Net Gain after fees)"
-            
-            # 2. Then check Trailing / Fixed TP/SL from settings
             entry_price = self.portfolio["holdings"][coin_id]["entry_price"]
             if current_price >= entry_price * (1 + self.take_profit):
-                return "Take Profit (Fixed 15%)"
+                return f"Take Profit (Fixed {int(self.take_profit*100)}%)"
             elif current_price <= entry_price * (1 - self.stop_loss):
-                return "Stop Loss (Fixed 8%)"
+                return f"Stop Loss (Fixed {int(self.stop_loss*100)}%)"
                 
         return None
     
