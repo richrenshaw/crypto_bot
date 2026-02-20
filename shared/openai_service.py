@@ -25,7 +25,7 @@ def get_trading_signal(prompt):
             return "HOLD"
 
         response = current_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": "Decide now: BUY, SELL or HOLD only."}
