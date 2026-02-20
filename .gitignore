@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Azure Functions local settings (contains secrets)
+local.settings.json
+
+# Environment files
+.env
+
+# Data files (now stored in Cosmos DB)
+*.csv
+*.json
+!host.json
+
+# VS Code
+.vscode/
+
+# Pytest
+.pytest_cache/
