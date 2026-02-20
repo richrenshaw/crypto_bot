@@ -27,14 +27,20 @@ def run_trading_cycle():
             logging.info(f"Portfolio Status: Cost: ${cost:.2f}, Net Value (after fees): ${net_val:.2f}, Gain: {gain_pct:.2f}%")
         # ----------------------------------------
         
-        # Load prompt template
-        template_path = os.path.join(os.path.dirname(__file__), "prompt_template.txt")
-        if not os.path.exists(template_path):
-            logging.error(f"Prompt template not found at {template_path}")
-            return
-
-        with open(template_path, "r") as f:
-            prompt_template = f.read()
+        # Load prompt template from settings with fallback to local file
+        prompt_template = trader.settings.get("PROMPT_TEMPLATE")
+        
+        if not prompt_template:
+            template_path = os.path.join(os.path.dirname(__file__), "prompt_template.txt")
+            if os.path.exists(template_path):
+                with open(template_path, "r") as f:
+                    prompt_template = f.read()
+                logging.info("Using local prompt_template.txt (fallback)")
+            else:
+                logging.error("Prompt template not found in settings or local file!")
+                return
+        else:
+            logging.info("Using dynamic PROMPT_TEMPLATE from Cosmos DB")
 
         coins_to_track = trader.settings.get("COINS_TO_TRACK", [])
         if isinstance(coins_to_track, str):
