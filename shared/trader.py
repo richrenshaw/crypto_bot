@@ -87,6 +87,9 @@ def run_trading_cycle():
                     logging.warning(f"Skipping {coin_id}: Invalid price")
                     continue
 
+                # Refresh holding stats (price/URL) if we own it
+                trader.update_holding_stats(coin_id, current_price)
+
                 coin_name = market_data.get("name", coin_id)
                 
                 prompt = prompt_template.format(coin_name=coin_name, current_price=current_price)

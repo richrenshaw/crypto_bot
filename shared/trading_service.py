@@ -24,7 +24,9 @@ class TradingService:
         self.portfolio["holdings"][coin_id] = {
             "quantity": quantity,
             "entry_price": current_price,
-            "value_usd": self.order_amount
+            "current_price": current_price,
+            "value_usd": self.order_amount,
+            "url": f"https://www.coingecko.com/en/coins/{coin_id}"
         }
         self.portfolio["balance_usd"] -= self.order_amount
         
@@ -70,6 +72,19 @@ class TradingService:
             reason=reason
         )
         return True
+
+    def update_holding_stats(self, coin_id, current_price):
+        """Update the latest price and URL for an existing holding."""
+        if coin_id in self.portfolio["holdings"]:
+            self.portfolio["holdings"][coin_id]["current_price"] = current_price
+            # Ensure URL is present even if position was opened before this update
+            if "url" not in self.portfolio["holdings"][coin_id]:
+                self.portfolio["holdings"][coin_id]["url"] = f"https://www.coingecko.com/en/coins/{coin_id}"
+            
+            # Save updated portfolio to Cosmos
+            self.cosmos.save_portfolio(self.portfolio)
+            return True
+        return False
 
     def get_coin_performance(self, coin_id, current_price):
         """Calculate the gain/loss for a specific coin holding."""
