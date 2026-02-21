@@ -1,8 +1,10 @@
 import logging
 import os
-from .trading_service import TradingService
-from .coingecko_service import CoinGeckoService
-from .openai_service import get_trading_signal
+import time
+from datetime import datetime
+from shared.trading_service import TradingService
+from shared.coingecko_service import CoinGeckoService
+from shared.openai_service import get_trading_signal
 
 def run_trading_cycle():
     logging.info("Starting trading cycle...")
@@ -92,12 +94,26 @@ def run_trading_cycle():
 
                 coin_name = market_data.get("name", coin_id)
                 
-                prompt = prompt_template.format(coin_name=coin_name, current_price=current_price)
-                # Append OHLC data to prompt
-                prompt += f"\nOHLC Data: {ohlc[-5:]} "  # Last 5 candles for brevity
+                # Context Awareness: Are we already holding this?
+                holding_info = "Status: Not currently holding."
+                if coin_id in trader.portfolio["holdings"]:
+                    holding = trader.portfolio["holdings"][coin_id]
+                    perf = trader.get_coin_performance(coin_id, current_price)
+                    holding_info = f"Status: HOLDING. Entry: ${holding['entry_price']:.4f}, Current P/L: {perf:.2f}%"
+
+                prompt = prompt_template.format(
+                    coin_name=coin_name, 
+                    current_price=current_price,
+                    holding_info=holding_info
+                )
+                # Append OHLC data to prompt - use 30 for better trend analysis
+                prompt += f"\nOHLC Data (last 30 intervals): {ohlc[-30:]} "
 
                 signal = get_trading_signal(prompt)
                 logging.info(f"Signal for {coin_id}: {signal}")
+                
+                # Rate limiting: 10s delay between Groq calls
+                time.sleep(10)
                 
                 sell_reason = trader.check_sell_conditions(coin_id, current_price)
                 
