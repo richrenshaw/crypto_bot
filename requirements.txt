@@ -4,3 +4,4 @@ openai
 pandas
 python-dotenv
 requests
+python-binance

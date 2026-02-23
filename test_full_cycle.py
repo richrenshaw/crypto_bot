@@ -15,7 +15,7 @@ def test_full_cycle_with_holdings():
     
     # We will patch the services to avoid real API calls
     with patch('shared.trader.TradingService') as MockTradingService, \
-         patch('shared.trader.CoinGeckoService') as MockCoinGeckoService, \
+         patch('shared.trader.BinanceService') as MockBinanceService, \
          patch('shared.trader.get_trading_signal') as MockGetSignal:
         
         # Setup Trader Mock
@@ -23,7 +23,7 @@ def test_full_cycle_with_holdings():
         trader_instance.portfolio = {
             "balance_usd": 1000,
             "holdings": {
-                "bitcoin": { # Bitcoin IS in default track list
+                "btc": { # btc IS in default track list
                     "quantity": 0.001,
                     "entry_price": 50000,
                     "value_usd": 50
@@ -36,15 +36,15 @@ def test_full_cycle_with_holdings():
             }
         }
         trader_instance.settings = {
-            "COINS_TO_TRACK": "bitcoin,ethereum"
+            "COINS_TO_TRACK": "btc,eth"
         }
         
-        # Setup CoinGecko Mock
-        cg_instance = MockCoinGeckoService.return_value
+        # Setup Binance Mock
+        cg_instance = MockBinanceService.return_value
         cg_instance.get_volatile_coins.return_value = []
         cg_instance.get_market_data.return_value = {"total_volume": 1000000, "name": "Mock Coin"}
         cg_instance.get_ohlc.return_value = [[0,1,1,1]] * 10
-        cg_instance.get_current_price.side_effect = lambda cid: 60000 if cid == "bitcoin" else 1.1 if cid == "untracked-coin" else 2000
+        cg_instance.get_current_price.side_effect = lambda cid: 60000 if cid == "btc" else 1.1 if cid == "untracked-coin" else 2000
         
         # Setup Signal Mock
         MockGetSignal.return_value = "HOLD"

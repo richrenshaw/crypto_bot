@@ -3,7 +3,7 @@ import os
 import time
 from datetime import datetime
 from shared.trading_service import TradingService
-from shared.coingecko_service import CoinGeckoService
+from shared.coingecko_service import BinanceService
 from shared.openai_service import get_trading_signal
 
 def run_trading_cycle():
@@ -11,7 +11,7 @@ def run_trading_cycle():
     
     try:
         trader = TradingService()
-        cg = CoinGeckoService()
+        cg = BinanceService()
         
         # 1. Volatile Coin Discovery
         volatile_coins = cg.get_volatile_coins()
