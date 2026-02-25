@@ -8,6 +8,21 @@ dist/
 build/
 *.egg
 
+# Trending output
+trending_output.json
+
+# Pair output
+pair_output.json
+
+# Watchlist output
+watchlist_output.json   
+
+# Trading output
+trading_output.json 
+
+# Function app
+function_app.py
+
 # Virtual Environment
 venv/
 .venv/

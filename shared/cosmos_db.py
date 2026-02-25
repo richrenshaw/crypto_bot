@@ -57,6 +57,12 @@ class CosmosDBService:
             offer_throughput=400
         )
 
+        # Watchlist container - Partition Key: /coin, shared throughput
+        self.watchlist_container = self.database.create_container_if_not_exists(
+            id="watchlist",
+            partition_key=PartitionKey(path="/coin")
+        )
+
     def get_portfolio(self):
         """Retrieve the portfolio state."""
         if not self.client:
@@ -128,3 +134,28 @@ class CosmosDBService:
         
         self.equity_container.create_item(body=equity_data)
         logging.info(f"Equity point logged to Cosmos DB: ${equity_data.get('total_value')}")
+
+    def get_watchlist_item(self, coin_id):
+        """Retrieve a watchlist item by coin."""
+        if not self.client: return None
+        try:
+            # Query by coin since id is composite {coin}-{pairAddress}
+            query = "SELECT * FROM c WHERE c.coin = @coin"
+            items = list(self.watchlist_container.query_items(
+                query=query,
+                parameters=[{"name": "@coin", "value": coin_id}],
+                enable_cross_partition_query=True
+            ))
+            return items[0] if items else None
+        except Exception as e:
+            logging.error(f"Error getting watchlist item for {coin_id}: {e}")
+            return None
+
+    def upsert_watchlist_item(self, item_data):
+        """Upsert a watchlist item."""
+        if not self.client: return
+        try:
+            self.watchlist_container.upsert_item(body=item_data)
+            logging.info(f"Watchlist item upserted: {item_data.get('id')}")
+        except Exception as e:
+            logging.error(f"Error upserting watchlist item: {e}")
