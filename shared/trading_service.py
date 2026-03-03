@@ -15,7 +15,7 @@ class TradingService:
         # Load portfolio from Cosmos
         self.portfolio = self.cosmos.get_portfolio()
 
-    def simulate_buy(self, coin_id, current_price):
+    def simulate_buy(self, coin_id, current_price, target_profit=None):
         if self.portfolio["balance_usd"] < self.order_amount:
             logging.info(f"Insufficient funds to buy {coin_id}")
             return False
@@ -26,7 +26,8 @@ class TradingService:
             "entry_price": current_price,
             "current_price": current_price,
             "value_usd": self.order_amount,
-            "url": f"https://www.coingecko.com/en/coins/{coin_id}"
+            "url": f"https://www.coingecko.com/en/coins/{coin_id}",
+            "target_profit_pct": target_profit
         }
         self.portfolio["balance_usd"] -= self.order_amount
         
@@ -140,9 +141,22 @@ class TradingService:
                 logging.warning(f"Could not sell {coin_id}: Price missing")
 
     def check_sell_conditions(self, coin_id, current_price):
-        """Check if any sell conditions are met (TP/SL from settings)."""
+        """Check if any sell conditions are met (TP/SL from settings or dynamic)."""
         if coin_id in self.portfolio["holdings"]:
-            entry_price = self.portfolio["holdings"][coin_id]["entry_price"]
+            holding = self.portfolio["holdings"][coin_id]
+            entry_price = holding["entry_price"]
+            
+            # 1. Dynamic LLM target profit
+            target_pct = holding.get("target_profit_pct")
+            if target_pct is not None:
+                try:
+                    target_price = entry_price * (1 + float(target_pct) / 100)
+                    if current_price >= target_price:
+                        return f"Dynamic Take Profit ({float(target_pct):.1f}%)"
+                except (ValueError, TypeError):
+                    pass
+            
+            # 2. Global settings fallback
             if current_price >= entry_price * (1 + self.take_profit):
                 return f"Take Profit (Fixed {int(self.take_profit*100)}%)"
             elif current_price <= entry_price * (1 - self.stop_loss):

@@ -18,10 +18,7 @@ pair_output.json
 watchlist_output.json   
 
 # Trading output
-trading_output.json 
-
-# Function app
-function_app.py
+trading_output.json
 
 # Virtual Environment
 venv/

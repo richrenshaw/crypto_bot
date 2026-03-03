@@ -1,10 +1,10 @@
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from shared.trading_service import TradingService
-from shared.coingecko_service import BinanceService
-from shared.openai_service import get_trading_signal
+from shared.coingecko_service import BinanceService, CoinGeckoDiscovery
+from shared.openai_service import get_trading_signal, evaluate_holding_target
 from shared.dexscreener_service import DexScreenerService
 
 def run_trading_cycle():
@@ -13,15 +13,81 @@ def run_trading_cycle():
     try:
         trader = TradingService()
         cg = BinanceService()
+        cgd = CoinGeckoDiscovery()
         
-        # 1. Volatile Coin Discovery
-        volatile_coins = cg.get_volatile_coins()
-        logging.info(f"Top volatile coins discovered: {volatile_coins}")
+        # 1. Volatile Coin Discovery (Hybrid Mode - Every 2 Hours)
+        last_discovery_str = trader.settings.get("LAST_DISCOVERY_TIME")
+        last_discovery = None
+        if last_discovery_str:
+            try:
+                last_discovery = datetime.fromisoformat(last_discovery_str)
+            except:
+                pass
+
+        volatile_coins = []
+        if not last_discovery or datetime.utcnow() - last_discovery > timedelta(hours=2):
+            logging.info("Running CoinGecko discovery (2h interval reached)...")
+            candidates = cgd.get_trending_candidates(min_volume=1000000, limit=10)
+            
+            new_additions = False
+            for cand in candidates:
+                coin_symbol = cand["coin"]
+                # Check if exists on Binance
+                if cg._get_symbol(coin_symbol):
+                    volatile_coins.append(coin_symbol)
+                    
+            logging.info(f"Top volatile coins discovered on Binance: {volatile_coins}")
+            
+            # Update last discovery time
+            trader.settings["LAST_DISCOVERY_TIME"] = datetime.utcnow().isoformat()
+            trader.cosmos.update_settings(trader.settings)
+        else:
+            logging.info("Skipping CoinGecko discovery (within 2h interval).")
         
-        # 2. Status Update
+        # 2. Status Update & Daily Holding Target Review
         logging.info(f"Current USD Balance: ${trader.portfolio['balance_usd']:.2f}")
         holdings_list = list(trader.portfolio['holdings'].keys())
         logging.info(f"Current holdings: {holdings_list}")
+
+        last_review_str = trader.settings.get("LAST_TARGET_REVIEW_TIME")
+        last_review = None
+        if last_review_str:
+            try:
+                last_review = datetime.fromisoformat(last_review_str)
+            except:
+                pass
+
+        if holdings_list and (not last_review or datetime.utcnow() - last_review > timedelta(hours=24)):
+            logging.info("Running daily target profit review for holdings...")
+            for h_coin in holdings_list:
+                h_data = trader.portfolio['holdings'][h_coin]
+                current_price = cg.get_current_price(h_coin)
+                if current_price == 0: continue
+                
+                ohlc = cg.get_ohlc(h_coin)
+                target_pct = h_data.get("target_profit_pct", trader.settings.get("TAKE_PROFIT", 15))
+                
+                review_prompt = f"You are reviewing an open position for {h_coin}.\n"
+                review_prompt += f"Entry Price: ${h_data['entry_price']:.4f}\n"
+                review_prompt += f"Current Price: ${current_price:.4f}\n"
+                review_prompt += f"Current Target Profit: {target_pct}%\n"
+                review_prompt += f"Recent OHLC (last 30 intervals): {ohlc[-30:]}\n"
+                review_prompt += "Is the current target still realistic given the recent trend? If momentum is slowing or dropping hard, lower it. If pumping, maybe raise it or keep it."
+                
+                eval_res = evaluate_holding_target(review_prompt)
+                if eval_res.get("action") == "ADJUST" and eval_res.get("new_target_pct"):
+                    new_pct = float(eval_res["new_target_pct"])
+                    logging.info(f"LLM adjusted target for {h_coin} from {target_pct}% to {new_pct}%")
+                    h_data["target_profit_pct"] = new_pct
+                    trader.portfolio["holdings"][h_coin] = h_data
+                    trader.update_holding_stats(h_coin, current_price)
+                
+                time.sleep(10) # Rate limiting
+                
+            trader.settings["LAST_TARGET_REVIEW_TIME"] = datetime.utcnow().isoformat()
+            trader.cosmos.update_settings(trader.settings)
+        else:
+            logging.info("Skipping daily target review (within 24h interval).")
 
         # Summary of current performance (Optional/Logging only)
         if holdings_list:
@@ -148,8 +214,11 @@ def run_trading_cycle():
                 # Append OHLC data to prompt - use 30 for better trend analysis
                 prompt += f"\nOHLC Data (last 30 intervals): {ohlc[-30:]} "
 
-                signal = get_trading_signal(prompt)
-                logging.info(f"Signal for {coin_id}: {signal}")
+                signal_data = get_trading_signal(prompt)
+                signal = signal_data.get("action", "HOLD")
+                target_profit = signal_data.get("target")
+                
+                logging.info(f"Signal for {coin_id}: {signal} (Target: {target_profit}%)")
                 
                 # Rate limiting: 10s delay between Groq calls
                 time.sleep(10)
@@ -160,7 +229,7 @@ def run_trading_cycle():
                     trader.simulate_sell(coin_id, current_price, sell_reason)
                 elif signal == "BUY":
                     if coin_id not in trader.portfolio["holdings"]:
-                        trader.simulate_buy(coin_id, current_price)
+                        trader.simulate_buy(coin_id, current_price, target_profit)
                     else:
                         logging.info(f"HOLD for {coin_id}: Already holding a position")
                 elif signal == "SELL":

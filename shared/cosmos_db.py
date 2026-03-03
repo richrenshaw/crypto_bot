@@ -108,7 +108,7 @@ class CosmosDBService:
             "STOP_LOSS": 8,
             "ORDER_AMOUNT": 50,
             "COINS_TO_TRACK": ["btc", "eth", "sol", "pepe", "bonk"],
-            "PROMPT_TEMPLATE": "You are an aggressive crypto trader chasing volatile opportunities for quick marginal gains. Analyze this OHLC data for {coin_name} over the last 30 intervals. Current price: ${current_price}. \n{holding_info}\nSpot potential pumps, high volatility spikes, or momentum shifts—even if risky. Embrace hype if volume supports it; aim for 3-10% swings.\nDecide: BUY (if any upside potential soon), SELL (only on clear downturn or to lock in profits), or HOLD (only if flat).\nLook at the data and decide immediately.\nRespond ONLY with one word: BUY, SELL, or HOLD.\nNo explanation, no punctuation, nothing else."
+            "PROMPT_TEMPLATE": "You are an aggressive crypto trader chasing volatile opportunities for quick marginal gains. Analyze this OHLC data for {coin_name} over the last 30 intervals. Current price: ${current_price}. \n{holding_info}\nSpot potential pumps, high volatility spikes, or momentum shifts—even if risky. Embrace hype if volume supports it; aim for 3-10% swings.\nDecide: BUY (if any upside potential soon), SELL (only on clear downturn or to lock in profits), or HOLD (only if flat).\nLook at the data and decide immediately.\nRespond ONLY with valid JSON. Format: {\"action\": \"BUY\", \"target_profit_pct\": 10} or {\"action\": \"SELL\"} or {\"action\": \"HOLD\"}."
         }
 
         if not self.client:

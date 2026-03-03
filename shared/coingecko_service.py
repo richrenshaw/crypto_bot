@@ -1,4 +1,6 @@
 import logging
+import time
+import requests
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
 
@@ -18,10 +20,21 @@ class BinanceService:
         }
 
     def _get_symbol(self, coin_id: str) -> str:
-        symbol = self.coin_mapping.get(coin_id.lower())
+        coin_id_lower = coin_id.lower()
+        if coin_id_lower == "pmpr":
+             return None # ignore obviously fake ones or just rely on binance check
+
+        symbol = self.coin_mapping.get(coin_id_lower)
         if not symbol:
-            logging.error(f"No Binance mapping for {coin_id}")
-            return None
+            dyn_symbol = f"{coin_id.upper()}USDT"
+            try:
+                # verify it exists
+                self.client.get_symbol_ticker(symbol=dyn_symbol)
+                self.coin_mapping[coin_id_lower] = dyn_symbol
+                return dyn_symbol
+            except Exception:
+                logging.error(f"No Binance mapping for {coin_id}")
+                return None
         return symbol
 
     def get_current_price(self, coin_id: str) -> float:
@@ -65,23 +78,47 @@ class BinanceService:
             logging.error(f"Market data error for {coin_id}: {e}")
             return {}
 
-    def get_volatile_coins(self, max_cap=500000000, min_vol=100000, min_change=5) -> list:
+
+class CoinGeckoDiscovery:
+    def __init__(self):
+        self.base_url = "https://api.coingecko.com/api/v3"
+
+    def get_trending_candidates(self, min_volume=1000000, limit=10):
         try:
-            tickers = self.client.get_ticker()
-            volatile = []
-            for t in tickers:
-                if not t["symbol"].endswith("USDT"):
+            # Sleep 2 seconds to be rate-limit friendly
+            time.sleep(2)
+            url = f"{self.base_url}/coins/markets"
+            params = {
+                "vs_currency": "usd",
+                "order": "volume_desc",
+                "per_page": 100,
+                "page": 1,
+                "sparkline": False
+            }
+            resp = requests.get(url, params=params, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            
+            candidates = []
+            for item in data:
+                vol = item.get("total_volume", 0) or 0
+                if vol < min_volume:
                     continue
-                try:
-                    change = float(t["priceChangePercent"])
-                    vol = float(t["quoteVolume"])
-                    if abs(change) >= min_change and vol >= min_vol:
-                        coin = t["symbol"].replace("USDT", "").lower()
-                        volatile.append(coin)
-                except:
-                    continue
-            volatile.sort(key=lambda x: abs(float(self.get_market_data(x).get("price_change_percentage_24h", 0))), reverse=True)
-            return volatile[:10]
+                price_change = abs(item.get("price_change_percentage_24h", 0) or 0)
+                # Let's say we want coins with > 5% change in 24h
+                if price_change > 5.0:
+                    symbol = item.get("symbol", "").lower()
+                    if symbol:
+                        candidates.append({
+                            "coin": symbol,
+                            "name": item.get("name"),
+                            "priceUsd": item.get("current_price"),
+                            "volume24h": vol,
+                            "priceChange24h": price_change
+                        })
+                        if len(candidates) >= limit:
+                            break
+            return candidates
         except Exception as e:
-            logging.error(f"Volatile coins error: {e}")
+            logging.error(f"CoinGecko discovery failed: {e}")
             return []
