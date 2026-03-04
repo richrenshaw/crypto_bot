@@ -122,6 +122,17 @@ class CosmosDBService:
             self.settings_container.create_item(body=default_settings)
             return default_settings
 
+    def update_settings(self, settings_data):
+        """Update application settings."""
+        if not self.client: return
+        
+        # Ensure ID is present
+        if "id" not in settings_data:
+            settings_data["id"] = "main_settings"
+            
+        self.settings_container.upsert_item(body=settings_data)
+        logging.info("Settings updated in Cosmos DB.")
+
     def log_equity(self, equity_data):
         """Log equity point."""
         if not self.client: return

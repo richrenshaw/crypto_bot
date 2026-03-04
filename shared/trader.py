@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from shared.trading_service import TradingService
 from shared.coingecko_service import BinanceService, CoinGeckoDiscovery
 from shared.openai_service import get_trading_signal, evaluate_holding_target
-from shared.dexscreener_service import DexScreenerService
 
 def run_trading_cycle():
     logging.info("Starting trading cycle...")
@@ -96,42 +95,8 @@ def run_trading_cycle():
             logging.info(f"Portfolio Status: Cost: ${cost:.2f}, Net Value (after fees): ${net_val:.2f}, Gain: {gain_pct:.2f}%")
         # ----------------------------------------
         
-        # 3. Watchlist Discovery with DexScreener
-        try:
-            dex_service = DexScreenerService()
-            trending_sol = dex_service.get_trending_solana(limit=15)
-            logging.info(f"Discovered {len(trending_sol)} trending solana coins.")
-            for pair_data in trending_sol:
-                coin_symbol = pair_data['coin']
-                # Check if in holdings
-                if coin_symbol in trader.portfolio.get('holdings', {}):
-                    continue
-                # Check if in watchlist
-                if trader.cosmos.get_watchlist_item(coin_symbol):
-                    continue
-                    
-                # Not present, upsert to watchlist
-                now_str = datetime.now().isoformat()
-                watchlist_doc = {
-                    "id": f"{coin_symbol}-{pair_data['pairAddress']}",
-                    "coin": coin_symbol,
-                    "chainId": pair_data['chainId'],
-                    "pairAddress": pair_data['pairAddress'],
-                    "priceUsd": pair_data['priceUsd'],
-                    "liquidityUsd": pair_data['liquidityUsd'],
-                    "volume24h": pair_data['volume24h'],
-                    "priceChange5m": pair_data['priceChange5m'],
-                    "priceChange1h": pair_data['priceChange1h'],
-                    "buys24h": pair_data['buys24h'],
-                    "sells24h": pair_data['sells24h'],
-                    "gtScore": pair_data['gtScore'],
-                    "addedAt": now_str,
-                    "status": "pending",
-                    "notes": ""
-                }
-                trader.cosmos.upsert_watchlist_item(watchlist_doc)
-        except Exception as e:
-            logging.error(f"Error during DexScreener watchlist discovery: {e}")
+        # 3. Watchlist Discovery (DexScreener Disabled)
+        logging.info("Watchlist discovery with DexScreener is disabled.")
         # ----------------------------------------
         
         # Load prompt template from settings with fallback to local file
